@@ -33,7 +33,8 @@ public class EdgeElement extends ElementModel {
             return;
         }
 
-        g.setColor(selected ? Color.MAGENTA : Color.LIGHT_GRAY);
+        //g.setColor(selected ? Color.MAGENTA : Color.LIGHT_GRAY);
+        g.setColor(getColor());
 
         if (parent == child) {
             g.drawRect(parent.getAllWidth() - 10, parent.getAllHeight() - 10, 15, 15);

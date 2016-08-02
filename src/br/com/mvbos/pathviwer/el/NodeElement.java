@@ -6,6 +6,7 @@
 package br.com.mvbos.pathviwer.el;
 
 import br.com.mvbos.jeg.element.ElementModel;
+import br.com.mvbos.pathviwer.Common;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.util.ArrayList;
@@ -33,19 +34,41 @@ public class NodeElement extends ElementModel {
     }
 
     @Override
+    public void update() {
+        super.update(); //To change body of generated methods, choose Tools | Templates.
+
+        if (Common.AUTO_WIDTH && Common.graphics != null) {
+            short w = (short) (Common.graphics.getFontMetrics(Common.textFont).stringWidth(name) + 10);
+            w = w < getWidth() ? (short) getWidth() : w;
+            setWidth(w);
+        }
+    }
+
+    @Override
     public void drawMe(Graphics2D g) {
         super.drawMe(g); //To change body of generated methods, choose Tools | Templates.
         //g.drawString((parent != null ? parent.getName() + " -> " : "") + name, getPx() + 5, getPy() + 10);
-
         //drawEdge(g);
-        g.setColor(Color.WHITE);
+
+        g.setFont(Common.textFont);
+
+        g.setColor(Common.COLOR_BG);
         g.fillRect(getPx() + 1, getPy() + 1, getWidth() - 1, getHeight() - 1);
 
-        g.setColor(getColor());
-        g.drawString(name, getPx() + 5, getPy() + 10);
+        if (parent == null) {
+            g.setColor(Common.COLOR_FIRST);
+        } else if (child.isEmpty() || (child.size() == 1 && child.contains(parent))) {
+            g.setColor(Common.COLOR_LAST);
+        } else {
+            g.setColor(Common.COLOR_MIDDLE);
+        }
+
+        g.drawString(name, getPx() + 5, getPy() + 20);
+        g.drawRect(getPx(), getPy(), getWidth(), getHeight());
 
     }
 
+    @Deprecated
     public void drawEdge(Graphics2D g) {
 
         for (NodeElement c : getChild()) {
@@ -107,6 +130,11 @@ public class NodeElement extends ElementModel {
 
     public void setSelected(boolean selected) {
         this.selected = selected;
+    }
+
+    @Override
+    public String toString() {
+        return "NodeElement{" + "parent=" + parent + ", child=" + child + ", selected=" + selected + '}';
     }
 
 }

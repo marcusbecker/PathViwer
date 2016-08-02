@@ -13,6 +13,9 @@ import br.com.mvbos.jeg.window.Camera;
 import br.com.mvbos.jeg.window.IMemory;
 import br.com.mvbos.jeg.window.impl.MemoryImpl;
 import static br.com.mvbos.pathviwer.Common.LIMIT;
+import br.com.mvbos.pathviwer.core.Core;
+import br.com.mvbos.pathviwer.core.FileCore;
+import br.com.mvbos.pathviwer.core.ToEnd;
 import br.com.mvbos.pathviwer.el.EdgeElement;
 import br.com.mvbos.pathviwer.el.NodeElement;
 import java.awt.Color;
@@ -31,11 +34,10 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
+import java.io.File;
+import java.io.FileFilter;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JOptionPane;
@@ -47,6 +49,8 @@ import javax.swing.Timer;
  * @author MarcusS
  */
 public class ViewWindow extends javax.swing.JFrame {
+
+    private boolean priority = true;
 
     private enum EditTool {
 
@@ -69,7 +73,7 @@ public class ViewWindow extends javax.swing.JFrame {
     //private ElementModel selectedElement;
     private final ElementModel[] selectedElements = new ElementModel[30];
 
-    private final IMemory memoryTemp = new MemoryImpl(30);
+    private final IMemory memoryTemp = new MemoryImpl(60);
 
     private final SelectorElement selector = new SelectorElement("selector");
 
@@ -82,6 +86,8 @@ public class ViewWindow extends javax.swing.JFrame {
     private EditTool mode = EditTool.SELECTOR;
 
     private final Camera cam = Camera.createNew();
+
+    private boolean inLoad;
 
     private class MyDispatcher implements KeyEventDispatcher {
 
@@ -143,28 +149,28 @@ public class ViewWindow extends javax.swing.JFrame {
     /**
      * Creates new form Window
      */
-    private final Map<String, List<String>> map = new LinkedHashMap<>(30);
-    private String rootNode = "a";
-
+    private Project project;
     private final Map<String, NodeElement> hist = new HashMap<>(50);
 
-    private void createNodes() {
+    private synchronized void createNodes() {
         elements.clear();
         hist.clear();
+        inLoad = true;
 
         new Thread() {
-
             @Override
             public void run() {
-                addElement(rootNode, null, 1);
+                addElement(project.getRootNode(), null, 1);
 
                 for (ElementModel e : elements) {
                     //order((NodeElement) e);
                 }
 
                 createEdges();
-            }
+                recalcStegeELSize();
 
+                inLoad = false;
+            }
         }.start();
     }
 
@@ -174,7 +180,7 @@ public class ViewWindow extends javax.swing.JFrame {
             return;
         }
 
-        if (!map.containsKey(name)) {
+        if (!project.getTree().containsKey(name)) {
             return;
         }
 
@@ -183,17 +189,18 @@ public class ViewWindow extends javax.swing.JFrame {
             return;
         }
 
-        List<String> lst = map.get(name);
+        String[] lst = project.getTree().get(name).toArray(new String[0]);
 
         NodeElement el = new NodeElement(140, 40, name);
+        el.update();
 
-        if (parent == null/*elements.isEmpty()*/) {
-            el.setColor(Color.RED);
+        if (parent == null) {
             el.setPxy(Common.W_SPACE, 0);
 
         } else {
+            Point p = Core.getLastPosition(parent.getParent());
             el.setParent(parent);
-            el.setPxy(parent.getAllWidth() + 30, parent.getPpy());
+            el.setPxy(parent.getAllWidth() + 30, p.y);
 
             parent.addChild(el);
         }
@@ -203,22 +210,44 @@ public class ViewWindow extends javax.swing.JFrame {
 
         order(el);
 
-        for (int i = 0; i < lst.size(); i++) {
-            String s = lst.get(i);
-            addElement(s, el, i + 1);
+        for (int i = 0; i < lst.length; i++) {
+            String newNode = lst[i];
+
+            if (priority) {
+                NodeElement p = parent;
+                while (p != null) {
+                    if (project.getTree().get(p.getName()).contains(newNode)) {
+                        break;
+                    }
+
+                    p = p.getParent();
+                }
+
+                if (p == null) {
+                    addElement(newNode, el, i + 1);
+                }
+
+            } else {
+                addElement(newNode, el, i + 1);
+            }
         }
     }
 
     private void order(NodeElement el) {
+        boolean again;
         boolean colide = false;
-        for (ElementModel e : elements) {
-            if (GraphicTool.g().bcollide(e, el)) {
-                //System.out.println("colide " + e.getName() + " " + el.getName());
-                colide = true;
-                el.setPy(e.getAllHeight() + Common.H_SPACE);
-                //el.setColor(Color.DARK_GRAY);
+
+        do {
+            again = false;
+            for (ElementModel e : elements) {
+                if (GraphicTool.g().bcollide(e, el)) {
+                    colide = true;
+                    again = true;
+                    el.setPy(e.getAllHeight() + Common.H_SPACE);
+                    break;
+                }
             }
-        }
+        } while (again);
 
         if (colide) {
             NodeElement p = el.getParent();
@@ -258,25 +287,15 @@ public class ViewWindow extends javax.swing.JFrame {
 
         initComponents();
 
-        map.put("a", Arrays.asList("b", "c", "c2"));
-        map.put("b", Arrays.asList("d", "h", "b2", "b"));
-        map.put("c", Arrays.asList("e", "f"));
-        map.put("d", Arrays.asList("g"));
-
-        map.put("b2", Arrays.asList("e"));
-        map.put("c2", Arrays.asList("c3"));
-        map.put("c3", Collections.EMPTY_LIST);
-        map.put("e", Collections.EMPTY_LIST);
-        map.put("f", Collections.EMPTY_LIST);
-        map.put("h", Collections.EMPTY_LIST);
-        map.put("g", Arrays.asList("h"));
-
         KeyboardFocusManager manager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
         manager.addKeyEventDispatcher(new MyDispatcher());
 
         cam.config(camSize, camSize, canvas.getWidth(), canvas.getHeight());
         cam.setAllowOffset(true);
         stageEl.setSize(camSize, camSize);
+        stageEl.setColor(Color.decode("#323232"));
+
+        selector.setColor(Color.LIGHT_GRAY);
 
         timer = new Timer(60, new ActionListener() {
             @Override
@@ -286,9 +305,6 @@ public class ViewWindow extends javax.swing.JFrame {
         });
 
         timer.start();
-
-        createNodes();
-
     }
 
     private boolean isSelected(ElementModel e) {
@@ -314,6 +330,11 @@ public class ViewWindow extends javax.swing.JFrame {
     private void initComponents() {
 
         pnCanvas = createCanvas();
+        jMenuBar1 = new javax.swing.JMenuBar();
+        jMenu1 = new javax.swing.JMenu();
+        miRun = new javax.swing.JMenuItem();
+        jMenu2 = new javax.swing.JMenu();
+        miToEnd = new javax.swing.JMenuItem();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("PathViwer");
@@ -341,8 +362,35 @@ public class ViewWindow extends javax.swing.JFrame {
         );
         pnCanvasLayout.setVerticalGroup(
             pnCanvasLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 521, Short.MAX_VALUE)
+            .addGap(0, 500, Short.MAX_VALUE)
         );
+
+        jMenu1.setText("Project");
+
+        miRun.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, java.awt.event.InputEvent.CTRL_MASK));
+        miRun.setText("Run");
+        miRun.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                miRunActionPerformed(evt);
+            }
+        });
+        jMenu1.add(miRun);
+
+        jMenuBar1.add(jMenu1);
+
+        jMenu2.setText("Edit");
+
+        miToEnd.setText("toEnd");
+        miToEnd.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                miToEndActionPerformed(evt);
+            }
+        });
+        jMenu2.add(miToEnd);
+
+        jMenuBar1.add(jMenu2);
+
+        setJMenuBar(jMenuBar1);
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -377,10 +425,123 @@ public class ViewWindow extends javax.swing.JFrame {
 
     }//GEN-LAST:event_formComponentResized
 
+    private void miRunActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miRunActionPerformed
+
+        project = Core.loadProject("alpha");
+        Common.selProject = project;
+
+        if (project.isNew()) {
+
+            project.setRootNode("mrsicc.htm");
+
+            new Thread() {
+                @Override
+                public void run() {
+                    FileCore fc = new FileCore(project, new File("D:/"));
+
+                    fc.load(project.getRootNode(), new FileFilter() {
+
+                        @Override
+                        public boolean accept(File f) {
+                            return f.isFile() && f.getName().toLowerCase().endsWith(".htm");
+                        }
+                    });
+
+                    Core.save(project);
+                    createNodes();
+                }
+            }.start();
+
+        } else {
+            createNodes();
+        }
+
+    }//GEN-LAST:event_miRunActionPerformed
+
+    private void miToEndActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miToEndActionPerformed
+
+        if (true) {
+            new Thread() {
+
+                public boolean remove(NodeElement ne) {
+
+                    if (project.getRootNode().equals(ne.getName())) {
+                        return false;
+                    }
+
+                    if ("ajax_ofic_livre.htm".equals(ne.getName())) {
+                        return false;
+                    }
+
+                    if (ne.getChild().isEmpty()) {
+                        return true;
+                    }
+
+                    List<NodeElement> toRemove = new ArrayList<>(ne.getChild().size());
+
+                    for (NodeElement n : ne.getChild()) {
+
+                        if (remove(n)) {
+                            toRemove.add(n);
+                            elements.remove(n);
+                            project.getTree().remove(n.getName());
+                        }
+                    }
+
+                    ne.getChild().removeAll(toRemove);
+
+                    return ne.getChild().isEmpty();
+                }
+
+                @Override
+                public void run() {
+                    //ToEnd t = new ToEnd(project);
+                    //t.toEnd("act_atualiza_log.htm");
+
+                    inLoad = true;
+                    List<ElementModel> lst = new ArrayList<>(elements);
+                    singleSelection(null);
+
+                    NodeElement ne = null;
+                    for (ElementModel e : lst) {
+                        if (e instanceof NodeElement && e.getName().equals(project.getRootNode())) {
+                            ne = (NodeElement) e;
+                            break;
+                        }
+                    }
+
+                    if (ne == null) {
+                        return;
+                    }
+
+                    for (NodeElement n : ne.getChild()) {
+                        if (remove(n)) {
+                            elements.remove(n);
+                            project.getTree().remove(n.getName());
+                        }
+                    }
+
+                    createNodes();
+                }
+
+            }.start();
+        } else {
+            ToEnd t = new ToEnd(project);
+            t.toEnd("act_atualiza_log.htm");
+            createNodes();
+        }
+
+    }//GEN-LAST:event_miToEndActionPerformed
+
     private final StringBuilder clip = new StringBuilder(100);
 
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JMenu jMenu1;
+    private javax.swing.JMenu jMenu2;
+    private javax.swing.JMenuBar jMenuBar1;
+    private javax.swing.JMenuItem miRun;
+    private javax.swing.JMenuItem miToEnd;
     private javax.swing.JPanel pnCanvas;
     // End of variables declaration//GEN-END:variables
 
@@ -404,11 +565,10 @@ public class ViewWindow extends javax.swing.JFrame {
                 g.scale(scale, scale);
             }
 
-            stageEl.setColor(Color.WHITE);
             cam.draw(g, stageEl);
 
             int sp = 5;
-            g.setColor(Color.BLACK);
+            g.setColor(selector.getColor());
 
             for (ElementModel el : selectedElements) {
                 if (el == null) {
@@ -441,14 +601,27 @@ public class ViewWindow extends javax.swing.JFrame {
 
                 memoryTemp.reset();
 
-                for (ElementModel el : elements) {
+                List<ElementModel> temp = elements;
+                if (inLoad) {
+                    temp = new ArrayList<>(elements);
+                }
+
+                for (ElementModel el : temp) {
                     if (el instanceof EdgeElement) {
                         EdgeElement ed = (EdgeElement) el;
-                        if (/*isSelected(ed.getChild()) ||*/isSelected(ed.getParent())) {
+                        if (isSelected(ed.getChild())) {
                             ed.setSelected(true);
+                            ed.setColor(Color.PINK);
                             memoryTemp.registerElement(el);
+
+                        } else if (isSelected(ed.getParent())) {
+                            ed.setSelected(true);
+                            ed.setColor(Color.MAGENTA);
+                            memoryTemp.registerElement(el);
+
                         } else {
                             ed.setSelected(false);
+                            ed.setColor(Color.LIGHT_GRAY);
                             cam.draw(g, el);
                         }
                     }
@@ -459,7 +632,7 @@ public class ViewWindow extends javax.swing.JFrame {
                     cam.draw(g, el);
                 }
 
-                for (ElementModel el : elements) {
+                for (ElementModel el : temp) {
                     if (el instanceof NodeElement) {
                         //((NodeElement) el).setSelected(isSelected(el));
                         cam.draw(g, el);
@@ -627,6 +800,10 @@ public class ViewWindow extends javax.swing.JFrame {
 
         selectedElements[0] = el;
 
+        if (el != null) {
+            System.out.println(el.getName());
+        }
+
     }
 
     private void multiSelect(ElementModel el) {
@@ -734,7 +911,7 @@ public class ViewWindow extends javax.swing.JFrame {
                         break;
                     }
                     if (t instanceof NodeElement) {
-                        map.remove(((NodeElement) t).getName());
+                        project.getTree().remove(((NodeElement) t).getName());
                     }
 
                     /*if (t instanceof NodeElement) {
