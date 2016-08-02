@@ -15,7 +15,6 @@ import br.com.mvbos.jeg.window.impl.MemoryImpl;
 import static br.com.mvbos.pathviwer.Common.LIMIT;
 import br.com.mvbos.pathviwer.core.Core;
 import br.com.mvbos.pathviwer.core.FileCore;
-import br.com.mvbos.pathviwer.core.ToEnd;
 import br.com.mvbos.pathviwer.el.EdgeElement;
 import br.com.mvbos.pathviwer.el.NodeElement;
 import java.awt.Color;
@@ -42,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 /**
@@ -160,6 +160,7 @@ public class ViewWindow extends javax.swing.JFrame {
         new Thread() {
             @Override
             public void run() {
+                project.setRootNode("act_atualiza_log.htm");
                 addElement(project.getRootNode(), null, 1);
 
                 for (ElementModel e : elements) {
@@ -329,12 +330,59 @@ public class ViewWindow extends javax.swing.JFrame {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
+        pnFromTo = new javax.swing.JFrame();
+        tfFrom = new javax.swing.JTextField();
+        tfTo = new javax.swing.JTextField();
+        btnFromTo = new javax.swing.JButton();
+        cbCancelReverse = new javax.swing.JCheckBox();
         pnCanvas = createCanvas();
         jMenuBar1 = new javax.swing.JMenuBar();
         jMenu1 = new javax.swing.JMenu();
         miRun = new javax.swing.JMenuItem();
         jMenu2 = new javax.swing.JMenu();
         miToEnd = new javax.swing.JMenuItem();
+
+        pnFromTo.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        pnFromTo.setResizable(false);
+
+        btnFromTo.setText("Execute");
+        btnFromTo.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnFromToActionPerformed(evt);
+            }
+        });
+
+        cbCancelReverse.setSelected(true);
+        cbCancelReverse.setText("Cancel Reverse");
+
+        javax.swing.GroupLayout pnFromToLayout = new javax.swing.GroupLayout(pnFromTo.getContentPane());
+        pnFromTo.getContentPane().setLayout(pnFromToLayout);
+        pnFromToLayout.setHorizontalGroup(
+            pnFromToLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(pnFromToLayout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(pnFromToLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addGroup(pnFromToLayout.createSequentialGroup()
+                        .addComponent(tfFrom, javax.swing.GroupLayout.DEFAULT_SIZE, 145, Short.MAX_VALUE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(tfTo, javax.swing.GroupLayout.PREFERRED_SIZE, 145, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(btnFromTo))
+                    .addComponent(cbCancelReverse, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addContainerGap(17, Short.MAX_VALUE))
+        );
+        pnFromToLayout.setVerticalGroup(
+            pnFromToLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(pnFromToLayout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(pnFromToLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(tfFrom, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(tfTo, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(btnFromTo))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(cbCancelReverse)
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+        );
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("PathViwer");
@@ -460,89 +508,121 @@ public class ViewWindow extends javax.swing.JFrame {
 
     private void miToEndActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miToEndActionPerformed
 
-        if (true) {
-            new Thread() {
+        SwingUtilities.invokeLater(new Runnable() {
 
-                public boolean remove(NodeElement ne) {
+            @Override
+            public void run() {
+                tfFrom.setText(project.getRootNode());
 
-                    if (project.getRootNode().equals(ne.getName())) {
-                        return false;
-                    }
-
-                    if ("ajax_ofic_livre.htm".equals(ne.getName())) {
-                        return false;
-                    }
-
-                    if (ne.getChild().isEmpty()) {
-                        return true;
-                    }
-
-                    List<NodeElement> toRemove = new ArrayList<>(ne.getChild().size());
-
-                    for (NodeElement n : ne.getChild()) {
-
-                        if (remove(n)) {
-                            toRemove.add(n);
-                            elements.remove(n);
-                            project.getTree().remove(n.getName());
-                        }
-                    }
-
-                    ne.getChild().removeAll(toRemove);
-
-                    return ne.getChild().isEmpty();
+                if (selectedElements[0] != null) {
+                    tfTo.setText(selectedElements[0].getName());
                 }
 
-                @Override
-                public void run() {
-                    //ToEnd t = new ToEnd(project);
-                    //t.toEnd("act_atualiza_log.htm");
+                pnFromTo.pack();
+                pnFromTo.setLocationRelativeTo(ViewWindow.this);
+                pnFromTo.setVisible(true);
+            }
+        });
 
-                    inLoad = true;
-                    List<ElementModel> lst = new ArrayList<>(elements);
-                    singleSelection(null);
-
-                    NodeElement ne = null;
-                    for (ElementModel e : lst) {
-                        if (e instanceof NodeElement && e.getName().equals(project.getRootNode())) {
-                            ne = (NodeElement) e;
-                            break;
-                        }
-                    }
-
-                    if (ne == null) {
-                        return;
-                    }
-
-                    for (NodeElement n : ne.getChild()) {
-                        if (remove(n)) {
-                            elements.remove(n);
-                            project.getTree().remove(n.getName());
-                        }
-                    }
-
-                    createNodes();
-                }
-
-            }.start();
-        } else {
-            ToEnd t = new ToEnd(project);
-            t.toEnd("act_atualiza_log.htm");
-            createNodes();
-        }
 
     }//GEN-LAST:event_miToEndActionPerformed
+
+    private void btnFromToActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnFromToActionPerformed
+
+        final String from = tfFrom.getText();
+        final String to = tfTo.getText();
+
+        new Thread() {
+
+            public boolean remove(NodeElement ne) {
+
+                if (from.equals(ne.getName())) {
+                    return false;
+                }
+
+                if (to.equals(ne.getName())) {
+                    if (cbCancelReverse.isSelected()) {
+                        ne.getChild().clear();
+                    }
+
+                    return false;
+                }
+
+                if (ne.getChild().isEmpty()) {
+                    return true;
+                }
+
+                List<NodeElement> toRemove = new ArrayList<>(ne.getChild().size());
+
+                for (NodeElement n : ne.getChild()) {
+
+                    if (cbCancelReverse.isSelected() && from.equals(n.getName())) {
+                        toRemove.add(n);
+
+                    } else if (remove(n)) {
+                        toRemove.add(n);
+                        elements.remove(n);
+                        project.getTree().remove(n.getName());
+                    }
+                }
+
+                ne.getChild().removeAll(toRemove);
+
+                return ne.getChild().isEmpty();
+            }
+
+            @Override
+            public void run() {
+                //ToEnd t = new ToEnd(project);
+                //t.toEnd("act_atualiza_log.htm");
+
+                inLoad = true;
+                List<ElementModel> lst = new ArrayList<>(elements);
+                singleSelection(null);
+
+                NodeElement ne = null;
+                for (ElementModel e : lst) {
+                    if (e instanceof NodeElement && e.getName().equals(tfFrom.getText())) {
+                        ne = (NodeElement) e;
+                        break;
+                    }
+                }
+
+                if (ne == null) {
+                    return;
+                }
+
+                for (NodeElement n : ne.getChild()) {
+                    if (remove(n)) {
+                        elements.remove(n);
+                        project.getTree().remove(n.getName());
+                    }
+                }
+
+                createNodes();
+                System.out.println("end");
+            }
+
+        }.start();
+
+
+    }//GEN-LAST:event_btnFromToActionPerformed
 
     private final StringBuilder clip = new StringBuilder(100);
 
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton btnFromTo;
+    private javax.swing.JCheckBox cbCancelReverse;
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenu jMenu2;
     private javax.swing.JMenuBar jMenuBar1;
     private javax.swing.JMenuItem miRun;
     private javax.swing.JMenuItem miToEnd;
     private javax.swing.JPanel pnCanvas;
+    private javax.swing.JFrame pnFromTo;
+    private javax.swing.JTextField tfFrom;
+    private javax.swing.JTextField tfTo;
     // End of variables declaration//GEN-END:variables
 
     private class MyPanel extends JPanel {
