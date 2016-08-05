@@ -9,6 +9,7 @@ import br.com.mvbos.pathviwer.el.StageElement;
 import br.com.mvbos.jeg.element.ElementModel;
 import br.com.mvbos.jeg.element.SelectorElement;
 import br.com.mvbos.jeg.engine.GraphicTool;
+import br.com.mvbos.jeg.engine.SpriteTool;
 import br.com.mvbos.jeg.window.Camera;
 import br.com.mvbos.jeg.window.IMemory;
 import br.com.mvbos.jeg.window.impl.MemoryImpl;
@@ -33,12 +34,16 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.swing.ImageIcon;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -160,7 +165,6 @@ public class ViewWindow extends javax.swing.JFrame {
         new Thread() {
             @Override
             public void run() {
-                project.setRootNode("act_atualiza_log.htm");
                 addElement(project.getRootNode(), null, 1);
 
                 for (ElementModel e : elements) {
@@ -298,6 +302,9 @@ public class ViewWindow extends javax.swing.JFrame {
 
         selector.setColor(Color.LIGHT_GRAY);
 
+        SpriteTool s = SpriteTool.s(new ImageIcon("multimedia-153230_960_720.png")).matriz(5, 3);
+        btnStart.setIcon(s.createIcon(2, 0));
+
         timer = new Timer(60, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -335,11 +342,17 @@ public class ViewWindow extends javax.swing.JFrame {
         tfTo = new javax.swing.JTextField();
         btnFromTo = new javax.swing.JButton();
         cbCancelReverse = new javax.swing.JCheckBox();
+        pnsearch = new javax.swing.JFrame();
+        tfSearch = new javax.swing.JTextField();
+        btnSearchNext = new javax.swing.JButton();
         pnCanvas = createCanvas();
-        jMenuBar1 = new javax.swing.JMenuBar();
+        pnToolBar = new javax.swing.JPanel();
+        btnStart = new javax.swing.JButton();
+        mbMain = new javax.swing.JMenuBar();
         jMenu1 = new javax.swing.JMenu();
         miRun = new javax.swing.JMenuItem();
         jMenu2 = new javax.swing.JMenu();
+        miOpenSearch = new javax.swing.JMenuItem();
         miToEnd = new javax.swing.JMenuItem();
 
         pnFromTo.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
@@ -384,6 +397,37 @@ public class ViewWindow extends javax.swing.JFrame {
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
+        pnsearch.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        pnsearch.setAlwaysOnTop(true);
+
+        btnSearchNext.setText(">");
+        btnSearchNext.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnSearchNextActionPerformed(evt);
+            }
+        });
+
+        javax.swing.GroupLayout pnsearchLayout = new javax.swing.GroupLayout(pnsearch.getContentPane());
+        pnsearch.getContentPane().setLayout(pnsearchLayout);
+        pnsearchLayout.setHorizontalGroup(
+            pnsearchLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(pnsearchLayout.createSequentialGroup()
+                .addContainerGap()
+                .addComponent(tfSearch, javax.swing.GroupLayout.PREFERRED_SIZE, 215, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(btnSearchNext)
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+        );
+        pnsearchLayout.setVerticalGroup(
+            pnsearchLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(pnsearchLayout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(pnsearchLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(tfSearch, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(btnSearchNext))
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+        );
+
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("PathViwer");
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -410,7 +454,33 @@ public class ViewWindow extends javax.swing.JFrame {
         );
         pnCanvasLayout.setVerticalGroup(
             pnCanvasLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 500, Short.MAX_VALUE)
+            .addGap(0, 472, Short.MAX_VALUE)
+        );
+
+        btnStart.setToolTipText("Start from selected node");
+        btnStart.setBorder(null);
+        btnStart.setPreferredSize(new java.awt.Dimension(35, 35));
+        btnStart.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnStartActionPerformed(evt);
+            }
+        });
+
+        javax.swing.GroupLayout pnToolBarLayout = new javax.swing.GroupLayout(pnToolBar);
+        pnToolBar.setLayout(pnToolBarLayout);
+        pnToolBarLayout.setHorizontalGroup(
+            pnToolBarLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(pnToolBarLayout.createSequentialGroup()
+                .addContainerGap()
+                .addComponent(btnStart, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+        );
+        pnToolBarLayout.setVerticalGroup(
+            pnToolBarLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(pnToolBarLayout.createSequentialGroup()
+                .addContainerGap()
+                .addComponent(btnStart, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
         jMenu1.setText("Project");
@@ -424,9 +494,18 @@ public class ViewWindow extends javax.swing.JFrame {
         });
         jMenu1.add(miRun);
 
-        jMenuBar1.add(jMenu1);
+        mbMain.add(jMenu1);
 
         jMenu2.setText("Edit");
+
+        miOpenSearch.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F, java.awt.event.InputEvent.CTRL_MASK));
+        miOpenSearch.setText("Search");
+        miOpenSearch.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                miOpenSearchActionPerformed(evt);
+            }
+        });
+        jMenu2.add(miOpenSearch);
 
         miToEnd.setText("toEnd");
         miToEnd.addActionListener(new java.awt.event.ActionListener() {
@@ -436,19 +515,23 @@ public class ViewWindow extends javax.swing.JFrame {
         });
         jMenu2.add(miToEnd);
 
-        jMenuBar1.add(jMenu2);
+        mbMain.add(jMenu2);
 
-        setJMenuBar(jMenuBar1);
+        setJMenuBar(mbMain);
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addComponent(pnCanvas, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+            .addComponent(pnToolBar, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(pnCanvas, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                .addComponent(pnToolBar, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(pnCanvas, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
         pack();
@@ -608,20 +691,76 @@ public class ViewWindow extends javax.swing.JFrame {
 
     }//GEN-LAST:event_btnFromToActionPerformed
 
+    private int last;
+
+    private void btnSearchNextActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSearchNextActionPerformed
+        Pattern p = Pattern.compile(tfSearch.getText());
+
+        //System.out.println(stageEl);
+        cam.config(stageEl.getWidth(), stageEl.getHeight(), canvas.getWidth(), canvas.getHeight());
+        //System.out.println(cam);
+
+        for (; last < elements.size(); last++) {
+            ElementModel el = elements.get(last);
+            Matcher m = p.matcher(el.getName());
+            if (m.find()) {
+                singleSelection(el);
+                cam.center(el);
+                break;
+            }
+        }
+
+        last++;
+        if (last >= elements.size()) {
+            last = 0;
+        }
+
+    }//GEN-LAST:event_btnSearchNextActionPerformed
+
+    private void miOpenSearchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miOpenSearchActionPerformed
+        SwingUtilities.invokeLater(new Runnable() {
+
+            @Override
+            public void run() {
+                pnsearch.pack();
+                pnsearch.setLocationRelativeTo(ViewWindow.this);
+                pnsearch.setVisible(true);
+            }
+        });
+
+
+    }//GEN-LAST:event_miOpenSearchActionPerformed
+
+    private void btnStartActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnStartActionPerformed
+
+        if (selectedElements[0] instanceof NodeElement) {
+            project.setRootNode(selectedElements[0].getName());
+
+            createNodes();
+        }
+
+    }//GEN-LAST:event_btnStartActionPerformed
+
     private final StringBuilder clip = new StringBuilder(100);
 
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnFromTo;
+    private javax.swing.JButton btnSearchNext;
+    private javax.swing.JButton btnStart;
     private javax.swing.JCheckBox cbCancelReverse;
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenu jMenu2;
-    private javax.swing.JMenuBar jMenuBar1;
+    private javax.swing.JMenuBar mbMain;
+    private javax.swing.JMenuItem miOpenSearch;
     private javax.swing.JMenuItem miRun;
     private javax.swing.JMenuItem miToEnd;
     private javax.swing.JPanel pnCanvas;
     private javax.swing.JFrame pnFromTo;
+    private javax.swing.JPanel pnToolBar;
+    private javax.swing.JFrame pnsearch;
     private javax.swing.JTextField tfFrom;
+    private javax.swing.JTextField tfSearch;
     private javax.swing.JTextField tfTo;
     // End of variables declaration//GEN-END:variables
 

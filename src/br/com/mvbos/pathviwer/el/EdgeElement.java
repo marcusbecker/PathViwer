@@ -20,7 +20,7 @@ public class EdgeElement extends ElementModel {
     private boolean selected;
 
     public EdgeElement(NodeElement parent, NodeElement child) {
-        super(1, 1, parent.getName() + child.getName());
+        super(1, 1, "node_" + parent.getName() + child.getName());
         this.parent = parent;
         this.child = child;
 
