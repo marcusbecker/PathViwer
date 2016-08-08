@@ -134,7 +134,8 @@ public class NodeElement extends ElementModel {
 
     @Override
     public String toString() {
-        return "NodeElement{" + "parent=" + parent + ", child=" + child + ", selected=" + selected + '}';
+        //return "NodeElement{" + getName() + ", " + "parent=" + parent.getName() + ", child=" + child.size() + ", selected=" + selected + '}';
+        return getName();
     }
 
 }

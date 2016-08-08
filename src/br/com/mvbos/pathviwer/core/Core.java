@@ -16,6 +16,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -88,6 +89,16 @@ public class Core {
         }
 
         return total;
+    }
+
+    public static ElementModel filter(String name, List<ElementModel> list) {
+        for (ElementModel e : list) {
+            if (name.equals(e.getName())) {
+                return e;
+            }
+        }
+
+        return null;
     }
 
     public static Point getLastPosition(NodeElement node) {

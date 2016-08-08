@@ -13,8 +13,9 @@ import br.com.mvbos.jeg.engine.SpriteTool;
 import br.com.mvbos.jeg.window.Camera;
 import br.com.mvbos.jeg.window.IMemory;
 import br.com.mvbos.jeg.window.impl.MemoryImpl;
-import static br.com.mvbos.pathviwer.Common.LIMIT;
 import br.com.mvbos.pathviwer.core.Core;
+import br.com.mvbos.pathviwer.core.DelimiterPath;
+import br.com.mvbos.pathviwer.core.DirectDelimiterPath;
 import br.com.mvbos.pathviwer.core.FileCore;
 import br.com.mvbos.pathviwer.el.EdgeElement;
 import br.com.mvbos.pathviwer.el.NodeElement;
@@ -34,13 +35,14 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.ImageIcon;
@@ -94,6 +96,12 @@ public class ViewWindow extends javax.swing.JFrame {
 
     private boolean inLoad;
 
+    private Project project;
+
+    private final Map<String, NodeElement> hist = new HashMap<>(50);
+
+    private final StringBuilder tStringBuilder = new StringBuilder(100);
+
     private class MyDispatcher implements KeyEventDispatcher {
 
         @Override
@@ -120,6 +128,13 @@ public class ViewWindow extends javax.swing.JFrame {
 
                 } else if (KeyEvent.VK_ESCAPE == e.getKeyCode()) {
                     mode = EditTool.SELECTOR;
+
+                } else if (KeyEvent.VK_LEFT == e.getKeyCode()) {
+
+                    if (isAltDown && getSingleSelected(NodeElement.class) != null) {
+                        NodeElement ne = getSingleSelected(NodeElement.class);
+                        foccus(ne.getParent());
+                    }
                 }
 
             } else if (e.getID() == KeyEvent.KEY_RELEASED) {
@@ -149,15 +164,26 @@ public class ViewWindow extends javax.swing.JFrame {
             return false;
         }
 
+        private <T extends ElementModel> T getSingleSelected(Class<T> type) {
+            if (type.isInstance(selectedElements[0])) {
+                return type.cast(selectedElements[0]);
+            }
+
+            return null;
+        }
+
     }
 
-    /**
-     * Creates new form Window
-     */
-    private Project project;
-    private final Map<String, NodeElement> hist = new HashMap<>(50);
+    private void foccus(ElementModel el) {
+        if (el == null) {
+            return;
+        }
 
-    private synchronized void createNodes() {
+        singleSelection(el);
+        cam.center(el);
+    }
+
+    private void createNodes() {
         elements.clear();
         hist.clear();
         inLoad = true;
@@ -171,6 +197,25 @@ public class ViewWindow extends javax.swing.JFrame {
                     //order((NodeElement) e);
                 }
 
+                if (priority) {
+                    for (ElementModel e : elements) {
+                        NodeElement n = (NodeElement) e;
+                        Set<String> lst = project.getTree().get(n.getName());
+                        for (String k : lst) {
+                            if (!project.getTree().containsKey(k)) {
+                                continue;
+                            }
+
+                            NodeElement ee = (NodeElement) Core.filter(k, elements);
+                            if (!n.getChild().contains(ee)) {
+                                n.getChild().add(ee);
+                            }
+                        }
+                    }
+                }
+
+                foccus(Core.filter(project.getRootNode(), elements));
+
                 createEdges();
                 recalcStegeELSize();
 
@@ -179,9 +224,256 @@ public class ViewWindow extends javax.swing.JFrame {
         }.start();
     }
 
+    private void delimiterPath(final String start, final String end) {
+        new Thread() {
+
+            private NodeElement endPath = null;
+            private NodeElement startPath = null;
+
+            private final Set<NodeElement> pathCrumb = new HashSet<>(50);
+            private final Set<NodeElement> goodPath = new HashSet<>(50);
+
+            private final Set<NodeElement> removed = new HashSet<>(50);
+
+            @Override
+            public void run() {
+                inLoad = true;
+                singleSelection(null);
+
+                List<ElementModel> lst = new ArrayList<>(elements);
+
+                startPath = (NodeElement) Core.filter(start, lst);
+                endPath = (NodeElement) Core.filter(end, lst);
+
+                if (startPath == null || endPath == null) {
+                    return;
+                }
+
+                //goodPath.add(endPath);
+                //pathCrumb.add(startPath);
+                for (NodeElement n : startPath.getChild()) {
+                    if (remove(n)) {
+                        elements.remove(n);
+                        project.getTree().remove(n.getName());
+                    }
+                }
+
+                pathCrumb.clear();
+                goodPath.clear();
+
+                createNodes();
+
+                System.out.println("end");
+            }
+
+            public boolean remove(NodeElement ne) {
+                foccus(ne);
+                singleSelection(null);
+                //System.out.println(ne);
+
+                if (removed.contains(ne)) {
+                    return true;
+                }
+
+                if (endPath.equals(ne)) {
+                    if (cbCancelReverse.isSelected()) {
+                        //ne.getChild().clear();
+                        for (NodeElement n : ne.getChild()) {
+                            elements.remove(n);
+                            project.getTree().remove(n.getName());
+                        }
+                    }
+
+                    goodPath.addAll(pathCrumb);
+                    return false;
+                }
+
+                if (goodPath.contains(ne)) {
+                    return false;
+                }
+
+                if (ne.getChild().isEmpty()) {
+                    return true;
+                }
+
+                List<NodeElement> lst = new ArrayList<>(ne.getChild());
+                //System.out.println(pathCrumb);
+                lst.removeAll(pathCrumb);
+
+                if (lst.isEmpty()) {
+                    return true;
+                }
+
+                List<NodeElement> toRemove = new ArrayList<>(lst.size());
+
+                pathCrumb.add(ne);
+                for (NodeElement n : lst) {
+                    pathCrumb.add(n);
+
+                    if (cbCancelReverse.isSelected() && startPath.equals(n)) {
+                        toRemove.add(n);
+
+                    } else if (remove(n)) {
+                        removed.add(n);
+                        toRemove.addAll(removed);
+                        elements.remove(n);
+                        project.getTree().remove(n.getName());
+                    }
+
+                    pathCrumb.remove(n);
+                }
+
+                pathCrumb.remove(ne);
+                lst.removeAll(toRemove);
+
+                if (lst.isEmpty()) {
+                    ne.getChild().clear();
+                } else {
+                    ne.getChild().removeAll(toRemove);
+                }
+
+                return ne.getChild().isEmpty();
+            }
+
+        }.start();
+    }
+
+    private void delimiterPathBug(final String start, final String end) {
+        new Thread() {
+
+            private NodeElement endPath = null;
+            private NodeElement startPath = null;
+
+            private final Set<NodeElement> pathCrumb = new HashSet<>(50);
+            private final Set<NodeElement> goodPath = new HashSet<>(50);
+
+            //private final Set<NodeElement> removed = new HashSet<>(50);
+            @Override
+            public void run() {
+                inLoad = true;
+                singleSelection(null);
+
+                List<ElementModel> lst = new ArrayList<>(elements);
+
+                startPath = (NodeElement) Core.filter(start, lst);
+                endPath = (NodeElement) Core.filter(end, lst);
+
+                if (startPath == null || endPath == null) {
+                    return;
+                }
+
+                goodPath.add(endPath);
+
+                pathCrumb.add(startPath);
+                for (NodeElement n : startPath.getChild()) {
+                    if (remove(n)) {
+                        elements.remove(n);
+                        project.getTree().remove(n.getName());
+                    }
+                }
+
+                createNodes();
+
+                pathCrumb.clear();
+                goodPath.clear();
+                //System.out.println("end");
+            }
+
+            public boolean remove(NodeElement ne) {
+                foccus(ne);
+                singleSelection(null);
+                //System.out.println(ne);
+
+                if (endPath.equals(ne)) {
+                    if (cbCancelReverse.isSelected()) {
+                        //ne.getChild().clear();
+                        for (NodeElement n : ne.getChild()) {
+                            elements.remove(n);
+                            project.getTree().remove(n.getName());
+                        }
+                    }
+
+                    goodPath.add(ne);
+                    NodeElement p = ne.getParent();
+                    while (p != null) {
+                        goodPath.add(p);
+                        p = p.getParent();
+                    }
+
+                    return false;
+                }
+
+                if (goodPath.contains(ne)) {
+                    return false;
+                }
+
+                List<NodeElement> lst = new ArrayList<>(ne.getChild());
+                //System.out.println(pathCrumb);
+                lst.removeAll(pathCrumb);
+
+                if (lst.isEmpty()) {
+                    return true;
+                }
+
+                List<NodeElement> toRemove = new ArrayList<>(lst.size());
+
+                for (NodeElement n : lst) {
+                    pathCrumb.add(n);
+
+                    if (cbCancelReverse.isSelected() && startPath.equals(n)) {
+                        toRemove.add(n);
+
+                    } else if (remove(n)) {
+                        toRemove.add(n);
+                        elements.remove(n);
+                        project.getTree().remove(n.getName());
+                    }
+
+                    pathCrumb.remove(n);
+                }
+
+                lst.removeAll(toRemove);
+
+                if (lst.isEmpty()) {
+                    ne.getChild().clear();
+                } else {
+                    ne.getChild().removeAll(toRemove);
+                }
+
+                return ne.getChild().isEmpty();
+            }
+
+        }.start();
+    }
+
+    private void delimiterPathDirect(final String start, final String end) {
+        new Thread() {
+
+            @Override
+            public void run() {
+                inLoad = true;
+                singleSelection(null);
+
+                NodeElement startPath = (NodeElement) Core.filter(start, elements);
+                NodeElement endPath = (NodeElement) Core.filter(end, elements);
+
+                DelimiterPath dp = new DirectDelimiterPath();
+                List<ElementModel> lst = dp.delimiter(startPath, endPath, elements);
+
+                for (ElementModel e : lst) {
+                    elements.remove(e);
+                    project.getTree().remove(e.getName());
+                }
+
+                createNodes();
+            }
+
+        }.start();
+    }
+
     private void addElement(String name, NodeElement parent, int deep) {
 
-        if (deep == LIMIT) {
+        if (deep == Common.LIMIT) {
             return;
         }
 
@@ -328,6 +620,13 @@ public class ViewWindow extends javax.swing.JFrame {
         return false;
     }
 
+    private void reConfigCam() {
+        int w = cam.getSceneWidth() > stageEl.getWidth() ? cam.getSceneWidth() : stageEl.getWidth();
+        int h = cam.getSceneHeight() > stageEl.getHeight() ? cam.getSceneHeight() : stageEl.getHeight();
+
+        cam.config(w, h, canvas.getWidth(), canvas.getHeight());
+    }
+
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -345,8 +644,11 @@ public class ViewWindow extends javax.swing.JFrame {
         pnsearch = new javax.swing.JFrame();
         tfSearch = new javax.swing.JTextField();
         btnSearchNext = new javax.swing.JButton();
-        pnCanvas = createCanvas();
         pnToolBar = new javax.swing.JPanel();
+        lblNodeChildren = new javax.swing.JLabel();
+        lblNodeParent = new javax.swing.JLabel();
+        pnCanvas = createCanvas();
+        jPanel1 = new javax.swing.JPanel();
         btnStart = new javax.swing.JButton();
         mbMain = new javax.swing.JMenuBar();
         jMenu1 = new javax.swing.JMenu();
@@ -398,7 +700,20 @@ public class ViewWindow extends javax.swing.JFrame {
         );
 
         pnsearch.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        pnsearch.setTitle("Search");
         pnsearch.setAlwaysOnTop(true);
+        pnsearch.setUndecorated(true);
+        pnsearch.addKeyListener(new java.awt.event.KeyAdapter() {
+            public void keyReleased(java.awt.event.KeyEvent evt) {
+                pnsearchKeyReleased(evt);
+            }
+        });
+
+        tfSearch.addKeyListener(new java.awt.event.KeyAdapter() {
+            public void keyReleased(java.awt.event.KeyEvent evt) {
+                tfSearchKeyReleased(evt);
+            }
+        });
 
         btnSearchNext.setText(">");
         btnSearchNext.addActionListener(new java.awt.event.ActionListener() {
@@ -446,25 +761,11 @@ public class ViewWindow extends javax.swing.JFrame {
             }
         });
 
-        javax.swing.GroupLayout pnCanvasLayout = new javax.swing.GroupLayout(pnCanvas);
-        pnCanvas.setLayout(pnCanvasLayout);
-        pnCanvasLayout.setHorizontalGroup(
-            pnCanvasLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 958, Short.MAX_VALUE)
-        );
-        pnCanvasLayout.setVerticalGroup(
-            pnCanvasLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 472, Short.MAX_VALUE)
-        );
+        pnToolBar.setBackground(new java.awt.Color(204, 204, 204));
 
-        btnStart.setToolTipText("Start from selected node");
-        btnStart.setBorder(null);
-        btnStart.setPreferredSize(new java.awt.Dimension(35, 35));
-        btnStart.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                btnStartActionPerformed(evt);
-            }
-        });
+        lblNodeChildren.setText("...");
+
+        lblNodeParent.setText("...");
 
         javax.swing.GroupLayout pnToolBarLayout = new javax.swing.GroupLayout(pnToolBar);
         pnToolBar.setLayout(pnToolBarLayout);
@@ -472,15 +773,53 @@ public class ViewWindow extends javax.swing.JFrame {
             pnToolBarLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(pnToolBarLayout.createSequentialGroup()
                 .addContainerGap()
-                .addComponent(btnStart, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGroup(pnToolBarLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(lblNodeChildren, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(lblNodeParent, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addContainerGap())
         );
         pnToolBarLayout.setVerticalGroup(
             pnToolBarLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(pnToolBarLayout.createSequentialGroup()
                 .addContainerGap()
-                .addComponent(btnStart, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addComponent(lblNodeParent)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(lblNodeChildren)
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+        );
+
+        javax.swing.GroupLayout pnCanvasLayout = new javax.swing.GroupLayout(pnCanvas);
+        pnCanvas.setLayout(pnCanvasLayout);
+        pnCanvasLayout.setHorizontalGroup(
+            pnCanvasLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGap(0, 960, Short.MAX_VALUE)
+        );
+        pnCanvasLayout.setVerticalGroup(
+            pnCanvasLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGap(0, 0, Short.MAX_VALUE)
+        );
+
+        btnStart.setToolTipText("Start from selected node");
+        btnStart.setBorder(null);
+        btnStart.setBorderPainted(false);
+        btnStart.setPreferredSize(new java.awt.Dimension(35, 35));
+        btnStart.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnStartActionPerformed(evt);
+            }
+        });
+
+        javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
+        jPanel1.setLayout(jPanel1Layout);
+        jPanel1Layout.setHorizontalGroup(
+            jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(btnStart, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+        );
+        jPanel1Layout.setVerticalGroup(
+            jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel1Layout.createSequentialGroup()
+                .addComponent(btnStart, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(0, 397, Short.MAX_VALUE))
         );
 
         jMenu1.setText("Project");
@@ -507,7 +846,7 @@ public class ViewWindow extends javax.swing.JFrame {
         });
         jMenu2.add(miOpenSearch);
 
-        miToEnd.setText("toEnd");
+        miToEnd.setText("Delimiter Path");
         miToEnd.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 miToEndActionPerformed(evt);
@@ -523,15 +862,20 @@ public class ViewWindow extends javax.swing.JFrame {
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(pnCanvas, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+            .addGroup(layout.createSequentialGroup()
+                .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(pnCanvas, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
             .addComponent(pnToolBar, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+            .addGroup(layout.createSequentialGroup()
                 .addComponent(pnToolBar, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(pnCanvas, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(pnCanvas, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jPanel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
         );
 
         pack();
@@ -546,18 +890,19 @@ public class ViewWindow extends javax.swing.JFrame {
 
     private void formWindowStateChanged(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowStateChanged
 
-        cam.config(cam.getSceneWidth(), cam.getSceneHeight(), canvas.getWidth(), canvas.getHeight());
+        reConfigCam();
 
     }//GEN-LAST:event_formWindowStateChanged
 
     private void formComponentResized(java.awt.event.ComponentEvent evt) {//GEN-FIRST:event_formComponentResized
 
-        cam.config(cam.getSceneWidth(), cam.getSceneHeight(), canvas.getWidth(), canvas.getHeight());
+        reConfigCam();
 
     }//GEN-LAST:event_formComponentResized
 
     private void miRunActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miRunActionPerformed
 
+        singleSelection(null);
         project = Core.loadProject("alpha");
         Common.selProject = project;
 
@@ -612,100 +957,30 @@ public class ViewWindow extends javax.swing.JFrame {
 
     private void btnFromToActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnFromToActionPerformed
 
-        final String from = tfFrom.getText();
-        final String to = tfTo.getText();
-
-        new Thread() {
-
-            public boolean remove(NodeElement ne) {
-
-                if (from.equals(ne.getName())) {
-                    return false;
-                }
-
-                if (to.equals(ne.getName())) {
-                    if (cbCancelReverse.isSelected()) {
-                        ne.getChild().clear();
-                    }
-
-                    return false;
-                }
-
-                if (ne.getChild().isEmpty()) {
-                    return true;
-                }
-
-                List<NodeElement> toRemove = new ArrayList<>(ne.getChild().size());
-
-                for (NodeElement n : ne.getChild()) {
-
-                    if (cbCancelReverse.isSelected() && from.equals(n.getName())) {
-                        toRemove.add(n);
-
-                    } else if (remove(n)) {
-                        toRemove.add(n);
-                        elements.remove(n);
-                        project.getTree().remove(n.getName());
-                    }
-                }
-
-                ne.getChild().removeAll(toRemove);
-
-                return ne.getChild().isEmpty();
-            }
-
-            @Override
-            public void run() {
-                //ToEnd t = new ToEnd(project);
-                //t.toEnd("act_atualiza_log.htm");
-
-                inLoad = true;
-                List<ElementModel> lst = new ArrayList<>(elements);
-                singleSelection(null);
-
-                NodeElement ne = null;
-                for (ElementModel e : lst) {
-                    if (e instanceof NodeElement && e.getName().equals(tfFrom.getText())) {
-                        ne = (NodeElement) e;
-                        break;
-                    }
-                }
-
-                if (ne == null) {
-                    return;
-                }
-
-                for (NodeElement n : ne.getChild()) {
-                    if (remove(n)) {
-                        elements.remove(n);
-                        project.getTree().remove(n.getName());
-                    }
-                }
-
-                createNodes();
-                System.out.println("end");
-            }
-
-        }.start();
+        //(tfFrom.getText().trim(), tfTo.getText().trim());
+        delimiterPathDirect(tfFrom.getText().trim(), tfTo.getText().trim());
 
 
     }//GEN-LAST:event_btnFromToActionPerformed
 
     private int last;
 
-    private void btnSearchNextActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSearchNextActionPerformed
+    private void search() {
         Pattern p = Pattern.compile(tfSearch.getText());
 
         //System.out.println(stageEl);
-        cam.config(stageEl.getWidth(), stageEl.getHeight(), canvas.getWidth(), canvas.getHeight());
+        //cam.config(stageEl.getWidth(), stageEl.getHeight(), canvas.getWidth(), canvas.getHeight());
         //System.out.println(cam);
-
         for (; last < elements.size(); last++) {
             ElementModel el = elements.get(last);
+
+            if (!(el instanceof NodeElement)) {
+                continue;
+            }
+
             Matcher m = p.matcher(el.getName());
             if (m.find()) {
-                singleSelection(el);
-                cam.center(el);
+                foccus(el);
                 break;
             }
         }
@@ -714,7 +989,10 @@ public class ViewWindow extends javax.swing.JFrame {
         if (last >= elements.size()) {
             last = 0;
         }
+    }
 
+    private void btnSearchNextActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSearchNextActionPerformed
+        search();
     }//GEN-LAST:event_btnSearchNextActionPerformed
 
     private void miOpenSearchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miOpenSearchActionPerformed
@@ -735,11 +1013,28 @@ public class ViewWindow extends javax.swing.JFrame {
 
         if (selectedElements[0] instanceof NodeElement) {
             project.setRootNode(selectedElements[0].getName());
-
+            singleSelection(null);
             createNodes();
         }
 
     }//GEN-LAST:event_btnStartActionPerformed
+
+    private void tfSearchKeyReleased(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_tfSearchKeyReleased
+        if (evt.getKeyCode() == KeyEvent.VK_ENTER) {
+            search();
+        } else if (evt.getKeyCode() == KeyEvent.VK_ESCAPE) {
+            pnsearch.dispose();
+        }
+
+    }//GEN-LAST:event_tfSearchKeyReleased
+
+    private void pnsearchKeyReleased(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_pnsearchKeyReleased
+
+        if (evt.getKeyCode() == KeyEvent.VK_ESCAPE) {
+            pnsearch.dispose();
+        }
+
+    }//GEN-LAST:event_pnsearchKeyReleased
 
     private final StringBuilder clip = new StringBuilder(100);
 
@@ -751,6 +1046,9 @@ public class ViewWindow extends javax.swing.JFrame {
     private javax.swing.JCheckBox cbCancelReverse;
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenu jMenu2;
+    private javax.swing.JPanel jPanel1;
+    private javax.swing.JLabel lblNodeChildren;
+    private javax.swing.JLabel lblNodeParent;
     private javax.swing.JMenuBar mbMain;
     private javax.swing.JMenuItem miOpenSearch;
     private javax.swing.JMenuItem miRun;
@@ -1019,8 +1317,30 @@ public class ViewWindow extends javax.swing.JFrame {
 
         selectedElements[0] = el;
 
-        if (el != null) {
-            System.out.println(el.getName());
+        lblNodeChildren.setText(null);
+        lblNodeParent.setText(null);
+        tStringBuilder.delete(0, tStringBuilder.length());
+
+        if (el instanceof NodeElement) {
+            NodeElement ne = (NodeElement) el;
+            tStringBuilder.append(ne.getName());
+
+            List<NodeElement> l = ne.getChild();
+            for (NodeElement n : l) {
+                tStringBuilder.append(" > ").append(n.getName());
+            }
+
+            lblNodeChildren.setText(tStringBuilder.toString());
+            tStringBuilder.delete(0, tStringBuilder.length());
+
+            NodeElement p = ne.getParent();
+            while (p != null) {
+                tStringBuilder.append(p.getName()).append(" > ");
+                p = p.getParent();
+            }
+
+            tStringBuilder.append(ne.getName());
+            lblNodeParent.setText(tStringBuilder.toString());
         }
 
     }
@@ -1119,6 +1439,7 @@ public class ViewWindow extends javax.swing.JFrame {
 
         stageEl.setPxy(xy.x, xy.y);
         stageEl.setSize(wh.width + 15, wh.height + 15);
+        reConfigCam();
     }
 
     private void removeSelNodes() {
