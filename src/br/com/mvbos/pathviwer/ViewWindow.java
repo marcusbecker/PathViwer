@@ -17,6 +17,7 @@ import br.com.mvbos.pathviwer.core.Core;
 import br.com.mvbos.pathviwer.core.DelimiterPath;
 import br.com.mvbos.pathviwer.core.DirectDelimiterPath;
 import br.com.mvbos.pathviwer.core.FileCore;
+import br.com.mvbos.pathviwer.core.FileCoreCache;
 import br.com.mvbos.pathviwer.el.EdgeElement;
 import br.com.mvbos.pathviwer.el.NodeElement;
 import java.awt.Color;
@@ -39,7 +40,6 @@ import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -187,6 +187,10 @@ public class ViewWindow extends javax.swing.JFrame {
         elements.clear();
         hist.clear();
         inLoad = true;
+
+        if (project.getRootNode() == null) {
+            return;
+        }
 
         new Thread() {
             @Override
@@ -681,19 +685,19 @@ public class ViewWindow extends javax.swing.JFrame {
     private void miRunActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miRunActionPerformed
 
         singleSelection(null);
-        project = Core.loadProject("alpha");
+        project = Core.loadProject("betha");
         Common.selProject = project;
 
         if (project.isNew()) {
 
-            project.setRootNode("mrsicc.htm");
+            project.setRootNode(null);
 
             new Thread() {
                 @Override
                 public void run() {
-                    FileCore fc = new FileCore(project, new File("D:/"));
+                    FileCoreCache fc = new FileCoreCache(project, new File("D:/"));
 
-                    fc.load(project.getRootNode(), new FileFilter() {
+                    fc.load(new FileFilter() {
 
                         @Override
                         public boolean accept(File f) {
@@ -709,6 +713,8 @@ public class ViewWindow extends javax.swing.JFrame {
         } else {
             createNodes();
         }
+        
+        setTitle(getTitle() + " - " + project.getName());
 
     }//GEN-LAST:event_miRunActionPerformed
 
@@ -746,26 +752,40 @@ public class ViewWindow extends javax.swing.JFrame {
     private void search() {
         Pattern p = Pattern.compile(tfSearch.getText());
 
-        //System.out.println(stageEl);
-        //cam.config(stageEl.getWidth(), stageEl.getHeight(), canvas.getWidth(), canvas.getHeight());
-        //System.out.println(cam);
-        for (; last < elements.size(); last++) {
-            ElementModel el = elements.get(last);
+        if (!elements.isEmpty()) {
+            //System.out.println(stageEl);
+            //cam.config(stageEl.getWidth(), stageEl.getHeight(), canvas.getWidth(), canvas.getHeight());
+            //System.out.println(cam);
+            for (; last < elements.size(); last++) {
+                ElementModel el = elements.get(last);
 
-            if (!(el instanceof NodeElement)) {
-                continue;
+                if (!(el instanceof NodeElement)) {
+                    continue;
+                }
+
+                Matcher m = p.matcher(el.getName());
+                if (m.find()) {
+                    foccus(el);
+                    break;
+                }
             }
 
-            Matcher m = p.matcher(el.getName());
-            if (m.find()) {
-                foccus(el);
-                break;
+            last++;
+            if (last >= elements.size()) {
+                last = 0;
             }
-        }
+        } else {
+            String root = null;
+            for (String s : project.getTree().keySet()) {
+                Matcher m = p.matcher(s);
+                if (m.find()) {
+                    root = s;
+                    break;
+                }
+            }
 
-        last++;
-        if (last >= elements.size()) {
-            last = 0;
+            project.setRootNode(root);
+            createNodes();
         }
     }
 
@@ -774,8 +794,12 @@ public class ViewWindow extends javax.swing.JFrame {
     }//GEN-LAST:event_btnSearchNextActionPerformed
 
     private void miOpenSearchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_miOpenSearchActionPerformed
-        SwingUtilities.invokeLater(new Runnable() {
+        openSearchDialog();
+    }//GEN-LAST:event_miOpenSearchActionPerformed
 
+    private void openSearchDialog() {
+        SwingUtilities.invokeLater(new Runnable() {
+            
             @Override
             public void run() {
                 pnsearch.pack();
@@ -783,9 +807,7 @@ public class ViewWindow extends javax.swing.JFrame {
                 pnsearch.setVisible(true);
             }
         });
-
-
-    }//GEN-LAST:event_miOpenSearchActionPerformed
+    }
 
     private void btnStartActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnStartActionPerformed
 
@@ -793,6 +815,9 @@ public class ViewWindow extends javax.swing.JFrame {
             project.setRootNode(selectedElements[0].getName());
             singleSelection(null);
             createNodes();
+            
+        } else {
+            openSearchDialog();
         }
 
     }//GEN-LAST:event_btnStartActionPerformed
